@@ -1,30 +1,43 @@
-from cryptography.hazmat.primitives.asymmetric import rsa
+# pip install cryptography
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import rsa
 
-def generate_keys():
-    # Generate private key
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048
-    )
+def receiver():
+    try:
+        # Load the receiver's private key
+        with open('receiver_private.pem', 'rb') as f:
+            receiver_private_key = serialization.load_pem_private_key(
+                f.read(),
+                password=None
+            )
+    except FileNotFoundError:
+        print("Error: 'receiver_private.pem' file not found. Please generate the private key first.")
+        return
 
-    # Save private key
-    with open("receiver_private.pem", "wb") as f:
-        f.write(private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
-        ))
+    try:
+        # Load the encrypted message
+        with open('encrypted_message.bin', 'rb') as f:
+            ciphertext = f.read()
+    except FileNotFoundError:
+        print("Error: 'encrypted_message.bin' file not found. Please make sure the sender has encrypted and saved the message.")
+        return
 
-    # Generate and save public key
-    public_key = private_key.public_key()
-    with open("receiver_public.pem", "wb") as f:
-        f.write(public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ))
+    try:
+        # Decrypt the message using RSA private key with OAEP padding
+        plaintext = receiver_private_key.decrypt(
+            ciphertext,
+            OAEP(
+                mgf=MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
 
-    print("✅ RSA Key pair generated successfully.")
+        print("\n✅ Decrypted message:", plaintext.decode())
+    except Exception as e:
+        print("❌ Decryption failed:", str(e))
 
 if __name__ == "__main__":
-    generate_keys()
+    receiver()
